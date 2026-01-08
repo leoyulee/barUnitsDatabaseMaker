@@ -1,0 +1,6 @@
+{
+	"Lua.diagnostics.globals": [
+		"UnitDefs"
+	],
+	"debug.BAR-Path": "${workspaceFolder}\\Beyond-All-Reason"
+}

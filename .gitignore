@@ -1,0 +1,4 @@
+*.sqlite3
+.vscode/settings.json
+luaToJsonOutput/units/
+__pycache__/
