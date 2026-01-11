@@ -138,7 +138,7 @@ def main():
 			existingUnitData = (sqlCon.execute(f"SELECT COUNT(*) FROM {UNIT_TABLE} WHERE unitID = ?",(unitID,))).fetchone() or (0,)
 			if existingUnitData[0] == 0:
 				insCount+=1
-				sqlCon.execute(f"INSERT INTO {UNIT_TABLE} (unitID,name,description,contents) VALUES (?,?,?,?)",(unitID,name,desc,str(content),))
+				sqlCon.execute(f"INSERT INTO {UNIT_TABLE} (unitID,name,description,contents) VALUES (?,?,?,?)",(unitID,name,desc,json.dumps(content),))
 			else:
 				upCount+=1
 				sqlCon.execute(f"UPDATE {UNIT_TABLE} SET name=?,description=?,contents=? WHERE unitID = ?",(name,desc,str(content),unitID,))
@@ -207,6 +207,8 @@ def main():
 				if existingCategoryData[0] == 0:
 					sqlCon.execute(f"INSERT INTO {CATEGORY_TABLE} (unitID, category) VALUES (?,?)", (unitID, category,))
 					sqlCon.commit()
+
+			#Add Weapons to WEAPON_TABLE
 		
 		print(f"insCount: {insCount}\nupCount: {upCount}")
 		print(sqlCon.execute(f"SELECT COALESCE(f.name, 'Other'), COUNT(*) FROM {UNIT_TABLE} u LEFT JOIN Faction f ON f.factionID = u.factionID GROUP BY u.factionID").fetchall())
