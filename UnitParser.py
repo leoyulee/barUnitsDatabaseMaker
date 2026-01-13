@@ -5,7 +5,7 @@ import json
 import subprocess
 import sqlite3 as sql
 import Categories
-import fileinput
+import time
 import sys
 
 parser = argparse.ArgumentParser("simple_example")
@@ -13,6 +13,34 @@ parser.add_argument("barFolderPath", help="The path of your BAR development repo
 parser.add_argument("-r","--resetDB", help="If the tables within the database should be reset", default=False, action='store_true')
 
 fileDir = pathlib.Path(__file__).parent
+
+iter = 0.15
+def printProgressBar (lasttime, iteration, total, prefix = '', suffix = '', decimals = 1, length = 100, fill = '█', printEnd = "\r"):
+	"""
+	Call in a loop to create terminal progress bar
+	@params:
+		iteration   - Required  : current iteration (Int)
+		total	   - Required  : total iterations (Int)
+		prefix	  - Optional  : prefix string (Str)
+		suffix	  - Optional  : suffix string (Str)
+		decimals	- Optional  : positive number of decimals in percent complete (Int)
+		length	  - Optional  : character length of bar (Int)
+		fill		- Optional  : bar fill character (Str)
+		printEnd	- Optional  : end character (e.g. "\r", "\r\n") (Str)
+	"""
+	now = time.time()
+	if iteration != total and now < lasttime+iter:
+		return lasttime
+	percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
+	filledLength = int(length * iteration // total)
+	bar = fill * filledLength + '-' * (length - filledLength)
+	sys.stdout.write(f'\r{prefix} |{bar}| {percent}% {suffix}')#, end = printEnd)
+	sys.stdout.flush()
+	# Print New Line on Complete
+	if iteration == total: 
+		print()
+	
+	return now
 
 def getFiles(dir: pathlib.Path, output: dict[str,str]):
 	if dir.is_dir():
@@ -148,23 +176,22 @@ def main():
 	contents: dict[str, dict[any,any]] = {}
 	print("Copying units.lua")
 	getFiles(cacheUnitFolder, contents)
-	print("Copied",len(contents),"Units")
+	unitTotal=len(contents)
+	print("Copied",unitTotal,"Units")
 
 	print("Setting up sqlite unit table")
 	with sql.connect('barUnits.sqlite3', isolation_level=None) as sqlCon:
 		verifyDB(sqlCon, args.resetDB or False)
 
-		insCount,upCount = 0,0
+		iterCount,starttime,lasttime=0,time.time(),time.time()
 		for unitID,content in (contents.items()):
 			name=names.get(unitID)
 			desc=descriptions.get(unitID)
 
 			existingUnitData = (sqlCon.execute(f"SELECT COUNT(*) FROM {UNIT_TABLE} WHERE unitID = ?",(unitID,))).fetchone() or (0,)
 			if existingUnitData[0] == 0:
-				insCount+=1
 				sqlCon.execute(f"INSERT INTO {UNIT_TABLE} (unitID,name,description,contents) VALUES (?,?,?,?)",(unitID,name,desc,json.dumps(content),))
 			else:
-				upCount+=1
 				sqlCon.execute(f"UPDATE {UNIT_TABLE} SET name=?,description=?,contents=? WHERE unitID = ?",(name,desc,str(content),unitID,))
 				
 			sqlCon.commit()
@@ -265,9 +292,9 @@ def main():
 				else:
 					sqlCon.execute(f"UPDATE {WEAPON_TABLE} SET wepID=?,contents=? WHERE unitID = ? AND assignmentID = ?",(wepID,json.dumps(wepCon),unitID,i,))
 				sqlCon.commit()
-
-		
-		print(f"insCount: {insCount}\nupCount: {upCount}")
+			iterCount+=1
+			lasttime = printProgressBar(lasttime,iterCount,unitTotal,f"Loading SQLite",f"({round(lasttime-starttime,1)} seconds elapsed)")
+		print(f"Took {round(lasttime-starttime,3)} seconds to finish sqlite process")
 		print(sqlCon.execute(f"SELECT COALESCE(f.name, 'Other'), COUNT(*) FROM {UNIT_TABLE} u LEFT JOIN Faction f ON f.factionID = u.factionID GROUP BY u.factionID").fetchall())
 
 
