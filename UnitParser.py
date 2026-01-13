@@ -72,7 +72,7 @@ def verifyUnitTable(sqlCon: sql.Connection, reset: bool):
 	
 	existCheck = sqlCon.execute(f"SELECT * FROM sqlite_master WHERE name = '{UNIT_TABLE}'")
 	if existCheck.fetchone() is None:
-		sqlCon.execute(f"CREATE TABLE {UNIT_TABLE} (unitID PRIMARY KEY,factionID,name,description,contents,energycost,energymake,energystorage,health,metalcost,metalmake,metalstorage,movementclass,radardistance,sightdistance,sonardistance,speed,turnrate,workertime)")
+		sqlCon.execute(f"CREATE TABLE {UNIT_TABLE} (unitID PRIMARY KEY,factionID,name,description,techlevel,contents,energycost,energymake,energystorage,health,metalcost,metalmake,metalstorage,movementclass,radardistance,sightdistance,sonardistance,speed,turnrate,workertime)")
 		sqlCon.commit()
 
 BUILD_TABLE = 'UnitBuildOption'
@@ -170,6 +170,10 @@ def main():
 			sqlCon.commit()
 
 			#Add Other Properties to Unit
+			customparams=content.get("customparams",{})
+			if not isinstance(customparams,dict):
+				customparams={}
+			techlevel=customparams.get("techlevel",1)
 			sqlCon.execute(f"""
 				UPDATE {UNIT_TABLE} SET
 					energycost=?,
@@ -185,7 +189,8 @@ def main():
 					sonardistance=?,
 					speed=?,
 					turnrate=?,
-					workertime=?
+					workertime=?,
+					techlevel=?
 				WHERE unitID = ?
 			""",(
 				content.get('energycost',0),
@@ -202,6 +207,7 @@ def main():
 				content.get('speed',0),
 				content.get('turnrate',0),
 				content.get('workertime',0),
+				techlevel,
 				unitID,
 			))
 			sqlCon.commit()
@@ -247,6 +253,7 @@ def main():
 						sqlCon.execute(f"INSERT INTO {WEAPONDEF_TABLE} (unitID,weaponID,name,weapontype,damage,reload,range,contents) VALUES (?,?,?,?,?,?,?,?)",(unitID,wepID,wepName,weapontype,json.dumps(damage),reloadtime,range,json.dumps(wepCon),))
 					else:
 						sqlCon.execute(f"UPDATE {WEAPONDEF_TABLE} SET name=?,weapontype=?,damage=?,reload=?,range=?,contents=? WHERE unitID = ? AND weaponID = ?",(wepName,weapontype,json.dumps(damage),reloadtime,range,json.dumps(wepCon),unitID,wepID,))
+					sqlCon.commit()
 				
 			#Add Weapons to WEAPON_TABLE
 			weapons:list[dict[str,any]] = content.get("weapons",[])
@@ -257,6 +264,7 @@ def main():
 					sqlCon.execute(f"INSERT INTO {WEAPON_TABLE} (unitID,weaponID,assignmentID,contents) VALUES (?,?,?,?)",(unitID,wepID,i,json.dumps(wepCon),))
 				else:
 					sqlCon.execute(f"UPDATE {WEAPON_TABLE} SET wepID=?,contents=? WHERE unitID = ? AND assignmentID = ?",(wepID,json.dumps(wepCon),unitID,i,))
+				sqlCon.commit()
 
 		
 		print(f"insCount: {insCount}\nupCount: {upCount}")
