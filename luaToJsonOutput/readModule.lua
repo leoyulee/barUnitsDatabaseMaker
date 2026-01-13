@@ -1,3 +1,10 @@
+Spring = {GetModOptions = function() return {
+	commanderbuildersrange = 1000,
+	commanderbuildersbuildpower = 400,
+	assistdronesbuildpowermultiplier = 1,
+	pushresistant = false,
+} end}
+
 local source = debug.getinfo(1).source
 -- Remove the leading '@' if present (common on Unix/Linux)
 source = source:gsub("^@", "")
