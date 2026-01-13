@@ -64,7 +64,7 @@ def verifyFactionTable(sqlCon: sql.Connection, reset: bool):
 	sqlCon.executemany(f"INSERT INTO {FACTION_TABLE} (factionID,name) VALUES (?,?)", FACTION_MAPPINGS)
 	sqlCon.commit()
 
-UNIT_TABLE = 'Units'
+UNIT_TABLE = 'Unit'
 def verifyUnitTable(sqlCon: sql.Connection, reset: bool):
 	if reset:
 		sqlCon.execute(f"DROP TABLE IF EXISTS {UNIT_TABLE}")
@@ -75,7 +75,7 @@ def verifyUnitTable(sqlCon: sql.Connection, reset: bool):
 		sqlCon.execute(f"CREATE TABLE {UNIT_TABLE} (unitID PRIMARY KEY,factionID,name,description,contents,energycost,energymake,energystorage,health,metalcost,metalmake,metalstorage,movementclass,radardistance,sightdistance,sonardistance,speed,turnrate,workertime)")
 		sqlCon.commit()
 
-BUILD_TABLE = 'UnitBuildOptions'
+BUILD_TABLE = 'UnitBuildOption'
 def verifyBuildTable(sqlCon: sql.Connection, reset: bool):
 	if reset:
 		sqlCon.execute(f"DROP TABLE IF EXISTS {BUILD_TABLE}")
@@ -86,7 +86,7 @@ def verifyBuildTable(sqlCon: sql.Connection, reset: bool):
 		sqlCon.execute(f"CREATE TABLE {BUILD_TABLE} (builderUnitID,optionUnitID)")
 		sqlCon.commit()
 
-CATEGORY_TABLE = 'UnitCategories'
+CATEGORY_TABLE = 'UnitCategory'
 def verifyCategoryTable(sqlCon: sql.Connection, reset: bool):
 	if reset:
 		sqlCon.execute(f"DROP TABLE IF EXISTS {CATEGORY_TABLE}")
@@ -97,11 +97,35 @@ def verifyCategoryTable(sqlCon: sql.Connection, reset: bool):
 		sqlCon.execute(f"CREATE TABLE {CATEGORY_TABLE} (unitID,category)")
 		sqlCon.commit()
 	
+WEAPONDEF_TABLE = 'UnitWeapon'
+def verifyWeaponDefTable(sqlCon: sql.Connection, reset: bool):
+	if reset:
+		sqlCon.execute(f"DROP TABLE IF EXISTS {WEAPONDEF_TABLE}")
+		sqlCon.commit()
+	
+	existCheck = sqlCon.execute(f"SELECT * FROM sqlite_master WHERE name = '{WEAPONDEF_TABLE}'")
+	if existCheck.fetchone() is None:
+		sqlCon.execute(f"CREATE TABLE {WEAPONDEF_TABLE} (unitID,weaponID,name,weapontype,damage,reload,range,contents)")
+		sqlCon.commit()
+
+WEAPON_TABLE = 'UnitWeaponAssignment'
+def verifyWeaponTable(sqlCon: sql.Connection, reset: bool):
+	if reset:
+		sqlCon.execute(f"DROP TABLE IF EXISTS {WEAPON_TABLE}")
+		sqlCon.commit()
+	
+	existCheck = sqlCon.execute(f"SELECT * FROM sqlite_master WHERE name = '{WEAPON_TABLE}'")
+	if existCheck.fetchone() is None:
+		sqlCon.execute(f"CREATE TABLE {WEAPON_TABLE} (unitID,weaponID,assignmentID,contents)")
+		sqlCon.commit()
+
 def verifyDB(sqlCon: sql.Connection, reset: bool):
 	verifyFactionTable(sqlCon,reset)
 	verifyUnitTable(sqlCon,reset)
 	verifyBuildTable(sqlCon,reset)
 	verifyCategoryTable(sqlCon,reset)
+	verifyWeaponDefTable(sqlCon,reset)
+	verifyWeaponTable(sqlCon,reset)
 
 def main():
 	args = parser.parse_args()
@@ -124,7 +148,7 @@ def main():
 	contents: dict[str, dict[any,any]] = {}
 	print("Copying units.lua")
 	getFiles(cacheUnitFolder, contents)
-	print(len(contents))
+	print("Copied",len(contents),"Units")
 
 	print("Setting up sqlite unit table")
 	with sql.connect('barUnits.sqlite3', isolation_level=None) as sqlCon:
@@ -208,7 +232,32 @@ def main():
 					sqlCon.execute(f"INSERT INTO {CATEGORY_TABLE} (unitID, category) VALUES (?,?)", (unitID, category,))
 					sqlCon.commit()
 
+			#Add Weapons to WEAPONDEF_TABLE
+			weapondefs:dict[str,dict[str,any]] = content.get("weapondefs",{})
+			if len(weapondefs) > 0:
+				for wepID,wepCon in (weapondefs.items()):
+					damage:dict[str,any] = wepCon.get("damage",{})
+					wepName = wepCon.get("name","")
+					weapontype = wepCon.get("weapontype")
+					reloadtime = wepCon.get("reloadtime")
+					range = wepCon.get("range")
+
+					existingWepDefData = (sqlCon.execute(f"SELECT COUNT(*) FROM {WEAPONDEF_TABLE} WHERE unitID = ? AND weaponID = ?",(unitID,wepID,))).fetchone() or (0,)
+					if existingWepDefData[0] == 0:
+						sqlCon.execute(f"INSERT INTO {WEAPONDEF_TABLE} (unitID,weaponID,name,weapontype,damage,reload,range,contents) VALUES (?,?,?,?,?,?,?,?)",(unitID,wepID,wepName,weapontype,json.dumps(damage),reloadtime,range,json.dumps(wepCon),))
+					else:
+						sqlCon.execute(f"UPDATE {WEAPONDEF_TABLE} SET name=?,weapontype=?,damage=?,reload=?,range=?,contents=? WHERE unitID = ? AND weaponID = ?",(wepName,weapontype,json.dumps(damage),reloadtime,range,json.dumps(wepCon),unitID,wepID,))
+				
 			#Add Weapons to WEAPON_TABLE
+			weapons:list[dict[str,any]] = content.get("weapons",[])
+			for i,wepCon in enumerate(weapons):
+				wepID = (str(wepCon.get("def",""))).lower()
+				existingWepDefData = (sqlCon.execute(f"SELECT COUNT(*) FROM {WEAPON_TABLE} WHERE unitID = ? AND assignmentID = ?",(unitID,i,))).fetchone() or (0,)
+				if existingWepDefData[0] == 0:
+					sqlCon.execute(f"INSERT INTO {WEAPON_TABLE} (unitID,weaponID,assignmentID,contents) VALUES (?,?,?,?)",(unitID,wepID,i,json.dumps(wepCon),))
+				else:
+					sqlCon.execute(f"UPDATE {WEAPON_TABLE} SET wepID=?,contents=? WHERE unitID = ? AND assignmentID = ?",(wepID,json.dumps(wepCon),unitID,i,))
+
 		
 		print(f"insCount: {insCount}\nupCount: {upCount}")
 		print(sqlCon.execute(f"SELECT COALESCE(f.name, 'Other'), COUNT(*) FROM {UNIT_TABLE} u LEFT JOIN Faction f ON f.factionID = u.factionID GROUP BY u.factionID").fetchall())
