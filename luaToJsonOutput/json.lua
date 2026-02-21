@@ -76,8 +76,9 @@ local function encode_table(val, stack)
       end
       n = n + 1
     end
-    if n ~= #val then
-      error("invalid table: sparse array")
+    local valCount = #val + (val[0] and 1 or 0)
+    if n ~= valCount then
+      error("invalid table: sparse array (n="..tostring(n)..",#val="..tostring(valCount)..")")
     end
     -- Encode
     for _i, v in ipairs(val) do
@@ -127,7 +128,12 @@ encode = function(val, stack)
   local t = type(val)
   local f = type_func_map[t]
   if f then
-    return f(val, stack)
+    local s, r = pcall(f,val,stack)
+    if s then
+      return r
+    else
+      return encode_nil()
+    end
   end
   error("unexpected type '" .. t .. "'")
 end
