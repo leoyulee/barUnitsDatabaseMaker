@@ -63,7 +63,7 @@ def getFiles(dir: pathlib.Path, output: dict[str,str]):
 				newJson = json.loads(result)
 				output[fileName] = newJson
 			except Exception as e:
-				print("Error",e,"\relPath:",relPath,"\nResult:",result)
+				print("Error:",e,"\nCommand:",'lua', str(readModule), str(luaPath),"\nrelPath:",relPath,"\nResult:",result)
 				output[fileName] = {}
 			#print(fileName, result)
 			#print(dir)
