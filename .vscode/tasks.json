@@ -13,7 +13,7 @@
                     "quoting": "strong"
                 },
                 {
-                    "value":"${config:BAR-Path}",
+                    "value":"${config:debug.BAR-Path}",
                     "quoting": "strong"
                 },
             ],
